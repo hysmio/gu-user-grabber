@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
+	"runtime"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -26,12 +28,24 @@ type Config struct {
 func ReadCfg() Config {
 	cfg := Config{}
 
-	inferredDirectory, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatalln(fmt.Errorf("couldn't infer the log directory: %s", err))
-	}
+	switch runtime.GOOS {
+	case "windows":
+		inferredDirectory, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatalln(fmt.Errorf("couldn't infer the log directory: %s", err))
+		}
 
-	cfg.FilePath = inferredDirectory + `\AppData\LocalLow\Immutable\gods\debug.log`
+		cfg.FilePath = inferredDirectory + `\AppData\LocalLow\Immutable\gods\debug.log`
+	case "darwin":
+		user, err := user.Current()
+		if err != nil {
+			log.Fatalf("failed to get current user: %s\n", err)
+		}
+
+		cfg.FilePath = fmt.Sprintf(`/System/Volumes/Data/Users/%s/Library/Logs/Immutable/gods/debug.log`, user.Username)
+	default:
+		log.Fatalf("unknown operating system, please use config.json: %s\n", runtime.GOOS)
+	}
 
 	file, err := os.Open("config.json")
 	if err != nil {
@@ -64,6 +78,7 @@ func ReadCfg() Config {
 }
 
 func main() {
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatalln(fmt.Errorf("couldn't create a file watcher: %s", err))
